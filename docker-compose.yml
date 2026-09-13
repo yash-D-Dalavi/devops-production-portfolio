@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_DB: production_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - backend-network
+
+  backend:
+    build: ./backend
+    container_name: backend_api
+    restart: always
+    environment:
+      - PORT=5000
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - frontend-network
+      - backend-network
+
+  frontend:
+    build: ./frontend
+    container_name: frontend_ui
+    restart: always
+    networks:
+      - frontend-network
+
+  nginx:
+    build: ./nginx
+    container_name: nginx_proxy
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - frontend-network
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: prometheus_monitor
+    restart: always
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - backend-network
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: grafana_dashboard
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    networks:
+      - backend-network
+
+volumes:
+  postgres_data:
+
+networks:
+  frontend-network:
+    driver: bridge
+  backend-network:
+    driver: bridge
